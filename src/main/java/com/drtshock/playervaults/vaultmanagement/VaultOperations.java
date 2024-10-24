@@ -152,8 +152,19 @@ public class VaultOperations {
                 return false;
             }
         } catch (NumberFormatException nfe) {
-            PlayerVaults.getInstance().getTL().mustBeNumber().title().send(player);
-            return false;
+            if (VaultManager.getInstance().getVaultAliases().containsKey(player.getUniqueId().toString())) {
+                Map<String, Integer> aliases = VaultManager.getInstance().getVaultAliases().get(player.getUniqueId().toString());
+
+                if (!aliases.containsKey(arg)) {
+                    PlayerVaults.getInstance().getTL().mustBeNumber().title().send(player);
+                    return false;
+                }
+
+                number = aliases.get(arg);
+            } else {
+                PlayerVaults.getInstance().getTL().mustBeNumber().title().send(player);
+                return false;
+            }
         }
 
         if (checkPerms(player, number)) {

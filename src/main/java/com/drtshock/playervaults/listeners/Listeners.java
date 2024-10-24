@@ -33,6 +33,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.Inventory;
@@ -75,16 +76,25 @@ public class Listeners implements Listener {
             return;
         }
         Player p = event.getPlayer();
+
         // The player will either quit, die, or close the inventory at some point
         if (plugin.getInVault().containsKey(p.getUniqueId().toString())) {
             return;
         }
+
         saveVault(p, p.getOpenInventory().getTopInventory());
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onJoin(PlayerJoinEvent event) {
+        Bukkit.getScheduler().runTaskAsynchronously(PlayerVaults.getInstance(), () -> VaultManager.getInstance().loadAliases(event.getPlayer()));
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onQuit(PlayerQuitEvent event) {
         saveVault(event.getPlayer(), event.getPlayer().getOpenInventory().getTopInventory());
+
+        VaultManager.getInstance().getVaultAliases().remove(event.getPlayer().getUniqueId().toString());
     }
 
     @EventHandler(priority = EventPriority.HIGH)

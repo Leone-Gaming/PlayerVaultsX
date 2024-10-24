@@ -66,36 +66,6 @@ public class SignListener implements Listener {
                 }
             }
         }
-        if (PlayerVaults.getInstance().getSetSign().containsKey(player.getName())) {
-            int i = PlayerVaults.getInstance().getSetSign().get(player.getName()).getChest();
-            boolean self = PlayerVaults.getInstance().getSetSign().get(player.getName()).isSelf();
-            String owner = self ? null : PlayerVaults.getInstance().getSetSign().get(player.getName()).getOwner();
-            PlayerVaults.getInstance().getSetSign().remove(player.getName());
-            event.setCancelled(true);
-            if (event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.LEFT_CLICK_BLOCK) {
-                if (block != null && plugin.isSign(block.getType())) {
-                    Sign s = (Sign) block.getState();
-                    Location l = s.getLocation();
-                    String world = l.getWorld().getName();
-                    int x = l.getBlockX();
-                    int y = l.getBlockY();
-                    int z = l.getBlockZ();
-                    if (self) {
-                        plugin.getSigns().set(world + ";;" + x + ";;" + y + ";;" + z + ".self", true);
-                    } else {
-                        plugin.getSigns().set(world + ";;" + x + ";;" + y + ";;" + z + ".owner", owner);
-                    }
-                    plugin.getSigns().set(world + ";;" + x + ";;" + y + ";;" + z + ".chest", i);
-                    plugin.saveSigns();
-                    this.plugin.getTL().setSign().title().send(player);
-                } else {
-                    this.plugin.getTL().notASign().title().send(player);
-                }
-            } else {
-                this.plugin.getTL().notASign().title().send(player);
-            }
-            return;
-        }
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
             if (block != null && plugin.isSign(block.getType())) {
                 Location l = block.getLocation();

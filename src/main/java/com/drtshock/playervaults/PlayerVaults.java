@@ -18,13 +18,8 @@
 
 package com.drtshock.playervaults;
 
-import com.drtshock.playervaults.commands.ConsoleCommand;
-import com.drtshock.playervaults.commands.ConvertCommand;
-import com.drtshock.playervaults.commands.DeleteCommand;
-import com.drtshock.playervaults.commands.HelpMeCommand;
-import com.drtshock.playervaults.commands.SignCommand;
-import com.drtshock.playervaults.commands.SignSetInfo;
-import com.drtshock.playervaults.commands.VaultCommand;
+import co.aikar.commands.PaperCommandManager;
+import com.drtshock.playervaults.commands.*;
 import com.drtshock.playervaults.config.Loader;
 import com.drtshock.playervaults.config.file.Config;
 import com.drtshock.playervaults.config.file.Translation;
@@ -35,6 +30,7 @@ import com.drtshock.playervaults.placeholder.Papi;
 import com.drtshock.playervaults.tasks.Cleanup;
 import com.drtshock.playervaults.vaultmanagement.EconomyOperations;
 import com.drtshock.playervaults.vaultmanagement.VaultManager;
+import com.drtshock.playervaults.vaultmanagement.VaultOperations;
 import com.drtshock.playervaults.vaultmanagement.VaultViewInfo;
 import com.google.gson.Gson;
 import net.kyori.adventure.audience.Audience;
@@ -93,7 +89,6 @@ import java.util.stream.Collectors;
 public class PlayerVaults extends JavaPlugin {
     public static boolean DEBUG;
     private static PlayerVaults instance;
-    private final HashMap<String, SignSetInfo> setSign = new HashMap<>();
     // Player name - VaultViewInfo
     private final HashMap<String, VaultViewInfo> inVault = new HashMap<>();
     // VaultViewInfo - Inventory
@@ -171,12 +166,68 @@ public class PlayerVaults extends JavaPlugin {
         debug("loaded signs", time);
         time = System.currentTimeMillis();
         update.spigotId = "%%__USER__%%";
-        getCommand("pv").setExecutor(new VaultCommand(this));
-        getCommand("pvdel").setExecutor(new DeleteCommand(this));
-        getCommand("pvconvert").setExecutor(new ConvertCommand(this));
-        getCommand("pvsign").setExecutor(new SignCommand(this));
-        getCommand("pvhelpme").setExecutor(new HelpMeCommand(this));
-        getCommand("pvconsole").setExecutor(new ConsoleCommand(this));
+
+        final PaperCommandManager commandManager = new PaperCommandManager(this);
+        commandManager.getCommandCompletions().registerCompletion("vaults_with_aliases", context -> {
+            final List<String> completions = new ArrayList<>();
+
+            if (context.getPlayer().hasPermission("playervaults.amount.*")) {
+                for (int i = 0; i < 100; i++) {
+                    completions.add(String.valueOf(i));
+                }
+
+                Map<String, Integer> aliases = VaultManager.getInstance().getVaultAliases().get(context.getPlayer().getUniqueId().toString());
+
+                if (aliases != null) {
+                    for (Map.Entry<String, Integer> entry : aliases.entrySet()) {
+                        completions.add(entry.getKey());
+                    }
+                }
+
+                return completions;
+            }
+
+            for (int i = 0; i < 100; i++) {
+                if (!VaultOperations.checkPerms(context.getPlayer(), i)) {
+                    break;
+                }
+
+                Map<String, Integer> aliases = VaultManager.getInstance().getVaultAliases().get(context.getPlayer().getUniqueId().toString());
+
+                if (aliases != null) {
+                    for (Map.Entry<String, Integer> entry : aliases.entrySet()) {
+                        completions.add(entry.getKey());
+                    }
+                }
+
+                completions.add(String.valueOf(i));
+            }
+
+            return completions;
+        });
+        commandManager.getCommandCompletions().registerCompletion("vaults", context -> {
+            final List<String> completions = new ArrayList<>();
+
+            if (context.getPlayer().hasPermission("playervaults.amount.*")) {
+                for (int i = 0; i < 100; i++) {
+                    completions.add(String.valueOf(i));
+                }
+
+                return completions;
+            }
+
+            for (int i = 0; i < 100; i++) {
+                if (!VaultOperations.checkPerms(context.getPlayer(), i)) {
+                    break;
+                }
+
+                completions.add(String.valueOf(i));
+            }
+
+            return completions;
+        });
+        commandManager.registerCommand(new PlayerVaultsCommand());
+
         update.meow = this.getClass().getDeclaredMethods().length;
         debug("registered commands", time);
         time = System.currentTimeMillis();
@@ -249,7 +300,6 @@ public class PlayerVaults extends JavaPlugin {
         }
 
         this.metricsSimplePie("signs", () -> getConf().isSigns() ? "enabled" : "disabled");
-        this.metricsSimplePie("cats", () -> HelpMeCommand.likesCats ? "meow" : "purr");
         this.metricsSimplePie("cleanup", () -> getConf().getPurge().isEnabled() ? "enabled" : "disabled");
 
         this.metricsDrillPie("block_items", () -> {
@@ -293,43 +343,6 @@ public class PlayerVaults extends JavaPlugin {
         this.getLogger().info("Loaded! Took " + (System.currentTimeMillis() - start) + "ms");
 
         this.updateCheck = new Gson().toJson(update);
-        if (!HelpMeCommand.likesCats) return;
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                try {
-                    URL url = new URL("https://update.plugin.party/check");
-                    HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                    con.setRequestMethod("POST");
-                    con.setDoOutput(true);
-                    con.setRequestProperty("Content-Type", "application/json");
-                    con.setRequestProperty("Accept", "application/json");
-                    try (OutputStream out = con.getOutputStream()) {
-                        out.write(PlayerVaults.this.updateCheck.getBytes(StandardCharsets.UTF_8));
-                    }
-                    String reply = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8)).lines().collect(Collectors.joining("\n"));
-                    Response response = new Gson().fromJson(reply, Response.class);
-                    if (response.isSuccess()) {
-                        if (response.isUpdateAvailable()) {
-                            PlayerVaults.this.updateResponse = response;
-                            if (response.isUrgent()) {
-                                PlayerVaults.this.getServer().getOnlinePlayers().forEach(PlayerVaults.this::updateNotification);
-                            }
-                            PlayerVaults.this.getLogger().warning("Update available: " + response.getLatestVersion() + (response.getMessage() == null ? "" : (" - " + response.getMessage())));
-                        }
-                    } else {
-                        if (response.getMessage().equals("INVALID")) {
-                            this.cancel();
-                        } else if (response.getMessage().equals("TOO_FAST")) {
-                            // Nothing for now
-                        } else {
-                            PlayerVaults.this.getLogger().warning("Failed to check for updates: " + response.getMessage());
-                        }
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-        }.runTaskTimerAsynchronously(this, 1, 20 /* ticks */ * 60 /* seconds in a minute */ * 60 /* minutes in an hour*/);
     }
 
     private void metricsLine(String name, Callable<Integer> callable) {
@@ -524,10 +537,6 @@ public class PlayerVaults extends JavaPlugin {
             getLogger().severe("Please report this error on GitHub @ https://github.com/drtshock/PlayerVaults/");
             e.printStackTrace();
         }
-    }
-
-    public HashMap<String, SignSetInfo> getSetSign() {
-        return this.setSign;
     }
 
     public HashMap<String, VaultViewInfo> getInVault() {
